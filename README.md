@@ -1883,11 +1883,10 @@ bool check_cmd_op(
 |形参|作用|
 |---|---|
 |`cmd_t_v`|命令类型键；执行时用它查 `cmd_def_set`|
-|`cmd_def_v`|执行函数指针；通常应为有效函数；传 `nullptr` 会让该命令类型没有可执行实现|
+|`cmd_def_v`|执行函数指针；通常应为有效函数；传 `nullptr` 会让该命令类型没有可执行实现|返回：`void`。异常：不主动抛异常；注册表插入可能分配并抛 `std::bad_alloc` 等标准库异常。|
 
-返回：`void`。
-
-异常：不主动抛异常；注册表插入可能分配并抛 `std::bad_alloc` 等标准库异常。
+|接口签名|注释|
+|---|---|
 |**bool add_set_cmd_set(cmd_data::cmd_mgr_index rc_cmd_index_v, cmd_data::cmd_index cmd_index_v, cmd_data::cmd_type cmd_type_v, cmd_data::cmd_op_index cmd_op_index_v, const std::initializer_list<cmd_data::cmd_op_single>& cmd_op_v)**|在 `rc_cmd_index_v` 资源实例的 `cmd_index_v` 位置写入命令，命令类型为 `cmd_type_v`，从 `cmd_op_index_v` 起写入初始化列表操作数。成功 `true`；失败 `false`。写入可能创建/扩容命令存储，旧 span/iterator 失效。|
 |**bool add_set_cmd_set(cmd_data::cmd_mgr_index rc_cmd_index_v, cmd_data::cmd_index cmd_index_v, cmd_data::cmd_type cmd_type_v, cmd_data::cmd_op_index cmd_op_index_v, std::span<const cmd_data::cmd_op_single> cmd_op_v)**|上述接口的 span 版本，适合操作数已在连续内存中的场景。语义、返回值和失效规则相同。|
 |**bool add_set_var_set(var_cont_data::var_mgr_index rc_var_index_v, var_cont_data::var_index var_index_v, var_cont_data::var_type var_type_v, var_cont_data::var_pos pos_begin_v, const std::span<rdata::rule_var_base_t>& span_write_v)**|在 `rc_var_index_v` 资源实例的 `var_index_v` 变量上，从 `pos_begin_v` 写入原始字节，变量类型为 `var_type_v`。成功 `true`；失败 `false`。写入可能扩容变量块，所有指向该变量的旧 span 失效。|
