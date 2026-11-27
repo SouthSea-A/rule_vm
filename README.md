@@ -74,7 +74,7 @@
 |变量如何存？|按 `var_index` 排序；每个变量是稀疏块，`begin/width` 按字节|
 |命令如何存？|dense；`begin/width` 按 `cmd_op_single` 个数|
 |如何自修改？|handler 通过门面写变量/命令；`*_ptr` 支持间接目标|
-|如何自动生成指令？|构造 `cmd_op_single` → `transform` 成 raw → `add_set_cmd_set` 写入|
+|如何自动生成指令？|构造 `cmd_op_single` → `transform` → 装载期 `add_set_cmd_set`；运行期用 `alloc` 写入|
 |如何序列化？|固定 raw bytes 布局 + 大端字段 + CRC32|
 |如何恢复？|`load` 恢复 var/cmd/stack/ip，再 `resume`|
 |如何扩展？|定义 `cmd_type`、handler、变量类型编号，不改内核|
@@ -93,7 +93,7 @@
 |**raw bytes**|字段按 `uint64` 大端；固定 16/48/56 字节布局|`裸字节序列化布局`|
 |**transform**|只做编码/解码，不检查资源存在性和范围|`transform 规则`|
 |**自修改**|变量/命令可写；handler 可在执行中改写后续规则|`自修改如何组合出来`|
-|**指令生成**|操作数 + 命令类型 + `add_set_cmd_set` 组合成新命令|`指令自动生成`|
+|**指令生成**|操作数 + 命令类型 + 写入；装载期 `add_set_cmd_set`，运行期 `alloc`|`指令自动生成`|
 |**完整序列化**|header + var + cmd + stack/ip + CRC32|`序列化`|
 
 ## 阅读路线
@@ -213,7 +213,7 @@ build/demo_template       # 模板代码 + 自生成表达式
 |**规则/策略执行**|把策略编译成 `cmd_type + 操作数`，注册 handler 后 `run`|命令池、操作数、执行器、回调|
 |**类汇编程序**|每条命令有绝对 `(cmd_set_index, cmd_index)`|`run_ip`、命令索引、`cmd_sgl`|
 |**自修改规则**|handler 写变量/命令；`var_ptr`/`cmd_ptr` 间接定位|`write_op_cont_span`、`add_set_*`、`*_ptr`|
-|**指令自动生成**|构造 `cmd_op_single` → `transform` → 写入命令池|`transform`、`add_set_cmd_set`、命令定义表|
+|**指令自动生成**|构造 `cmd_op_single` → `transform` → 装载期写入或运行期 `alloc`|`transform`、`add_set_cmd_set`、`alloc`|
 |**间接寻址/表驱动**|变量中保存 48 字节 `var_target`/`cmd_target`|`var_ptr` / `cmd_ptr`|
 |**持久化快照**|保存 header + var + cmd + stack/ip + CRC|`save` / `load` / `resume`|
 |**多实例隔离**|每个实例一个 `rule_kit` + `outer`|allocator、`rule_kit_outer`|
@@ -1085,9 +1085,9 @@ bool write_op_span_mul(
    - `var_tgt` / `cmd_tgt` 可以拿到写回目标。
 
 3. **写回数据**
-   - `write_op_cont_span` 写变量/命令目标；
-   - `add_set_var_set` 直接写变量内容；
-   - `add_set_cmd_set` 直接写命令及操作数。
+   - `write_op_cont_span` 写已有变量/命令目标；
+   - 运行期新建/扩容变量、命令用 `alloc` / `dealloc`；
+   - `add_set_var_set` / `add_set_cmd_set` 是装载期写入接口，运行期不使用。
 
 4. **改变后续执行**
    - 写变量可以改变后续 `var_val` 读到的内容；
@@ -1115,7 +1115,7 @@ bool write_op_span_mul(
 → 后续取指执行新指令
 ```
 
-注意：如果改写的是**当前正在执行的同一条命令**，`cmd_sgl`、`content` span 和解析视图可能立即失效。安全做法是先保存必要数据，改写其他变量/命令，或改完后重新取命令。
+注意：改写当前命令后，旧的 `cmd_sgl` 副本、`content` span 和已解析的 `op_cont` 仍可能失效。通过 `alloc` / `dealloc` / `write_op_cont_span` / `get_op_parse` 修改后，`param.get_cmd_info().get_cmd_sgl()` 会自动刷新；但已经保存的副本不会更新。运行期不要调用 `add_set_cmd_set` / `add_set_var_set`。
 
 ### 指令自动生成
 
@@ -1125,7 +1125,7 @@ bool write_op_span_mul(
 imm_target / var_target / cmd_target
         ↓ transform
 raw bytes
-        ↓ add_set_var_set / add_set_cmd_set
+        ↓ 装载期 add_set_* / 运行期 alloc + dealloc
 变量内容 / 命令内容
         ↓ cmd_ptr / cmd_val
 下一次解析或执行
@@ -1137,13 +1137,13 @@ raw bytes
 |---|---|---|
 |操作数|`cmd_op_single`|用 `imm_target` / `var_target` / `cmd_target` 构造|
 |raw 操作数|56 字节|`trans_tgt_to_raw<cmd_op_single>`|
-|命令|`cmd_sgl`|`add_set_cmd_set` 写 `cmd_type + 操作数`|
+|命令|`cmd_sgl`|装载期 `add_set_cmd_set`；运行期 `alloc` / `dealloc`|
 |变量中的指令指针|48 字节|把 `cmd_target`/`var_target` 编码后写入变量|
 |执行入口|`run_ip`|`run` / `resume` 指定从哪条命令开始|
 
 这带来两个能力：
 
-- **规则生成规则**：handler 可以构造新的 `cmd_target`/操作数，写入命令池，后续执行新命令；
+- **规则生成规则**：handler 在运行期用 `alloc` / `dealloc` 构造新命令或扩容操作数，后续执行新命令；
 - **规则生成数据**：handler 可以构造新的变量内容或 raw 目标，写入变量池，供后续 `var_val`/`var_ptr` 使用。
 
 生成出来的命令仍然是普通命令：它的 `cmd_type` 必须能在命令定义表中找到 handler，否则执行时会按“命令定义不存在”结束。
@@ -1204,6 +1204,8 @@ constexpr std::endian RAW_BYTES_ORDER = std::endian::big;
 
 ### 使用顺序
 
+下面示例是**装载期**写入；运行期不能直接调用 `add_set_var_set` / `add_set_cmd_set`。
+
 ```cpp
 // 1. 构造目标
 cmd_data::var_target tgt;
@@ -1218,12 +1220,14 @@ tgt.set_width(8);
 std::array<rule_kit::rule_kit_var_base, 48> raw{};
 kit.trans_tgt_to_raw(param, tgt, std::span(raw));
 
-// 3. 写入变量
+// 3. 装载期写入变量
 kit.add_set_var_set(0, 0, 1, 0, std::span(raw));
 
 // 4. 需要时再解析
 auto info = kit.get_var_cont_info(param, 0, 0, 0, 8);
 ```
+
+运行期修改变量/命令应通过 `get_op_parse` 取得写回目标，再使用 `write_op_cont_span`；扩容使用 `alloc`。
 
 注意：第 3 步写入的是“变量内容”，第 2 步写入的是“目标本身的 raw 编码”；两者不要混淆。
 
@@ -1514,9 +1518,9 @@ decltype(auto) get_var_set(this self_this&& self) noexcept;
 
 |接口签名|注释|
 |---|---|
-|**bool add_set_cmd_set(cmd_mgr_index rc_index, cmd_index cmd_index_v, cmd_type cmd_type_v, cmd_op_index cmd_op_index_v, const std::initializer_list<cmd_op_single>& cmd_op_v)**|`rc_index` 为命令资源实例；`cmd_index_v` 为命令编号；`cmd_type_v` 为类型；`cmd_op_index_v` 为操作数起点；`cmd_op_v` 为操作数列表。返回是否成功。|
-|**bool add_set_cmd_set(cmd_mgr_index rc_index, cmd_index cmd_index_v, cmd_type cmd_type_v, cmd_op_index cmd_op_index_v, std::span<const cmd_op_single> cmd_op_v)**|同上，用 `cmd_op_v` 的 span 提供操作数。|
-|**bool add_set_var_set(var_mgr_index rc_index, var_index var_index_v, var_type var_type_v, var_pos pos_begin_v, const std::span<rule_var_base_t>& span_write_v)**|`rc_index` 为变量资源实例；`var_index_v` 为变量编号；`var_type_v` 为类型；`pos_begin_v` 为字节起点；`span_write_v` 为内容。返回是否成功。|
+|**bool add_set_cmd_set(cmd_mgr_index rc_index, cmd_index cmd_index_v, cmd_type cmd_type_v, cmd_op_index cmd_op_index_v, const std::initializer_list<cmd_op_single>& cmd_op_v)**|装载期接口：在 `rc_index` 命令池的 `cmd_index_v` 位置写入命令；`rc_index` 为资源实例，`cmd_index_v` 为命令编号，`cmd_type_v` 为类型，`cmd_op_index_v` 为操作数起点，`cmd_op_v` 为操作数列表。返回是否成功。|
+|**bool add_set_cmd_set(cmd_mgr_index rc_index, cmd_index cmd_index_v, cmd_type cmd_type_v, cmd_op_index cmd_op_index_v, std::span<const cmd_op_single> cmd_op_v)**|装载期接口；同上，用 `cmd_op_v` 的 span 提供操作数。|
+|**bool add_set_var_set(var_mgr_index rc_index, var_index var_index_v, var_type var_type_v, var_pos pos_begin_v, const std::span<rule_var_base_t>& span_write_v)**|装载期接口：在 `rc_index` 变量池的 `var_index_v` 上写入变量内容；`rc_index` 为资源实例，`var_index_v` 为变量编号，`var_type_v` 为类型，`pos_begin_v` 为字节起点，`span_write_v` 为内容。返回是否成功。|
 |**void run(cmd_mgr_index rc_index, cmd_index cmd_index_v)**|`rc_index` 为命令资源实例；`cmd_index_v` 为命令编号。清空调用栈后执行；返回 `void`。|
 |**void resume(const run_ip& ip_v)**|`ip_v` 为恢复位置。保留调用栈继续执行；返回 `void`。|
 |**void copy_from(const rule& rule_v)**|`rule_v` 为源实例。复制变量、命令、栈、定义和回调；返回 `void`。|
@@ -1826,7 +1830,7 @@ bool check_cmd_op(
 
 |接口签名|注释|
 |---|---|
-|**std::optional<std::reference_wrapper<const std::span<op_cont>>> get_op_parse_ex(cmd_invoke_proxy_param& proxy_param, const rule_kit_cmd_sgl& cmd_parse_v, const std::initializer_list<cmd_data::cmd_op_index>& op_parse_v, bool is_alloc_rc, bool is_incr_ref)**|按 `op_parse_v` 给出的操作数下标，逐个解析 `cmd_parse_v` 到内部 `op_cont_buf`。`is_alloc_rc=true` 时先只做资源分配；若 `cmd_parse_v` 引用当前 `proxy_param.get_cmd_info().get_cmd_sgl()`，会在分配后刷新命令视图，再进行第二轮解析。成功返回指向 `span_op_cont` 的引用；`span_op_cont.size()==op_parse_v.size()`。失败返回 `nullopt` 并写 `int_info`。`is_incr_ref` 控制目标引用是否递增。返回的 span 只能用到下一次 `get_op_parse*`/`shrink_to_fit`/`clear`。|
+|**std::optional<std::reference_wrapper<const std::span<op_cont>>> get_op_parse_ex(cmd_invoke_proxy_param& proxy_param, const rule_kit_cmd_sgl& cmd_parse_v, const std::initializer_list<cmd_data::cmd_op_index>& op_parse_v, bool is_alloc_rc, bool is_incr_ref)**|按 `op_parse_v` 给出的操作数下标，逐个解析 `cmd_parse_v` 到内部 `op_cont_buf`。`is_alloc_rc=true` 时先只做资源分配；若 `cmd_parse_v` 引用当前 `proxy_param.get_cmd_info().get_cmd_sgl()`，会在分配后刷新命令视图，再进行第二轮解析。成功返回指向 `span_op_cont` 的引用；`span_op_cont.size()==op_parse_v.size()`。失败返回 `nullopt`；解析失败时写 `int_info`。`is_incr_ref` 控制目标引用是否递增。返回的 span 只能用到下一次 `get_op_parse*`/`shrink_to_fit`/`clear`。|
 |**std::optional<std::reference_wrapper<const std::span<op_cont>>> get_op_parse(cmd_invoke_proxy_param& proxy_param, const std::initializer_list<cmd_data::cmd_op_index>& op_parse_v, bool is_alloc_rc, bool is_incr_ref)**|使用当前命令（`proxy_param.get_cmd_info().get_cmd_sgl()`）调用 `get_op_parse_ex`。适合普通 handler 的“解析我关心的几个操作数”。|
 |**std::optional<std::reference_wrapper<const std::span<op_cont_span>>> get_op_cont_span(std::span<op_cont> op_parse_span_v)**|把 `get_op_parse` 得到的 `op_cont` 窗口投影到 `op_cont_span_buf`，用于写回/删除。成功返回 `span_op_cont_span` 的引用；失败返回 `nullopt`。只投影，不分配资源；容器扩容可能抛 `std::bad_alloc`。传入的 span 应来自当前 `get_op_parse`，不要用旧 span。|
 
@@ -1920,9 +1924,9 @@ bool check_cmd_op(
 
 |接口签名|注释|
 |---|---|
-|**bool add_set_cmd_set(cmd_data::cmd_mgr_index rc_cmd_index_v, cmd_data::cmd_index cmd_index_v, cmd_data::cmd_type cmd_type_v, cmd_data::cmd_op_index cmd_op_index_v, const std::initializer_list<cmd_data::cmd_op_single>& cmd_op_v)**|在 `rc_cmd_index_v` 资源实例的 `cmd_index_v` 位置写入命令，命令类型为 `cmd_type_v`，从 `cmd_op_index_v` 起写入初始化列表操作数。成功 `true`；失败 `false`。写入可能创建/扩容命令存储，旧 span/iterator 失效。|
-|**bool add_set_cmd_set(cmd_data::cmd_mgr_index rc_cmd_index_v, cmd_data::cmd_index cmd_index_v, cmd_data::cmd_type cmd_type_v, cmd_data::cmd_op_index cmd_op_index_v, std::span<const cmd_data::cmd_op_single> cmd_op_v)**|上述接口的 span 版本，适合操作数已在连续内存中的场景。语义、返回值和失效规则相同。|
-|**bool add_set_var_set(var_cont_data::var_mgr_index rc_var_index_v, var_cont_data::var_index var_index_v, var_cont_data::var_type var_type_v, var_cont_data::var_pos pos_begin_v, const std::span<rdata::rule_var_base_t>& span_write_v)**|在 `rc_var_index_v` 资源实例的 `var_index_v` 变量上，从 `pos_begin_v` 写入原始字节，变量类型为 `var_type_v`。成功 `true`；失败 `false`。写入可能扩容变量块，所有指向该变量的旧 span 失效。|
+|**bool add_set_cmd_set(cmd_data::cmd_mgr_index rc_cmd_index_v, cmd_data::cmd_index cmd_index_v, cmd_data::cmd_type cmd_type_v, cmd_data::cmd_op_index cmd_op_index_v, const std::initializer_list<cmd_data::cmd_op_single>& cmd_op_v)**|装载期接口：在 `rc_cmd_index_v` 资源实例的 `cmd_index_v` 位置写入命令，命令类型为 `cmd_type_v`，从 `cmd_op_index_v` 起写入初始化列表操作数。成功 `true`；失败 `false`。写入可能创建/扩容命令存储，旧 span/iterator 失效。|
+|**bool add_set_cmd_set(cmd_data::cmd_mgr_index rc_cmd_index_v, cmd_data::cmd_index cmd_index_v, cmd_data::cmd_type cmd_type_v, cmd_data::cmd_op_index cmd_op_index_v, std::span<const cmd_data::cmd_op_single> cmd_op_v)**|装载期接口；上述接口的 span 版本，适合操作数已在连续内存中的场景。语义、返回值和失效规则相同。|
+|**bool add_set_var_set(var_cont_data::var_mgr_index rc_var_index_v, var_cont_data::var_index var_index_v, var_cont_data::var_type var_type_v, var_cont_data::var_pos pos_begin_v, const std::span<rdata::rule_var_base_t>& span_write_v)**|装载期接口：在 `rc_var_index_v` 资源实例的 `var_index_v` 变量上，从 `pos_begin_v` 写入原始字节，变量类型为 `var_type_v`。成功 `true`；失败 `false`。写入可能扩容变量块，所有指向该变量的旧 span 失效。|
 
 #### `add_set_cmd_set` / `add_set_var_set` 形参说明
 
@@ -2009,7 +2013,7 @@ bool check_cmd_op(
 
 |成员|类型|注释|
 |---|---|---|
-|**owner**|`rule_kit&`|当前门面引用。handler 内通过它调用 `check_*`/`get_op_parse`/`add_set_*` 等；不要保存到 handler 外。|
+|**owner**|`rule_kit&`|当前门面引用。handler 内通过它调用 `check_*` / `get_op_parse` / `alloc` 等运行期接口；不要保存到 handler 外。|
 |**int_info_save**|`rule_int_info&`|诊断写回对象。所有带 `proxy_param` 的失败接口都会把错误阶段、`kernel_error`、变量/命令上下文写入这里；handler 失败后应读取并传播。|
 |**cmd_info**|`rule_kit_cmd_info<alloc, user_outer>`|当前命令信息，含 ip、命令管理器、命令视图；`check_cmd`/`get_op_parse` 的“当前命令”重载依赖它。`alloc/dealloc/write_op_cont_span/get_op_parse` 返回前会刷新其中的命令视图。|
 
@@ -2997,7 +3001,7 @@ mov a,99                  不会继续覆盖它
 - `c(...)` 是命令目标；
 - `mov` 的目标、源都可以是命令操作数；
 - 改写命令后，后续取指会看到新内容；
-- 不要原地扩容当前正在解析的命令区间，否则 `cmd_sgl`/span 会失效。
+- 通过 `alloc` / `write_op_cont_span` 修改当前命令后，应重新从 `cmd_info` 取 `cmd_sgl`；已保存的旧副本和旧 `op_cont` 不会更新；运行期不要用 `add_set_cmd_set`。
 
 #### 示例 4：指令自动生成
 
@@ -3647,8 +3651,9 @@ cl /nologo /O2 /std:c++latest /EHsc /utf-8 /I src /I example /I tests tests/seri
 - `save/load` 返回 `bool`，具体序列化错误在 `rule_serialize` 层以 `kernel_error` 表示；
 - `load` 失败会清空目标 rule；
 - `rule_int_info` 仅作为执行诊断，不要修改其结构；
-- 自修改规则时，不要原地扩容/重写“当前正在解析的同一命令区间”；这会破坏正在使用的 `cmd_sgl`/`span`，应先保存必要数据，改写其他变量/命令，或改完后重新取命令；
+- 自修改规则时，运行期应通过 `alloc` / `dealloc` / `write_op_cont_span` / `get_op_parse` 修改；修改当前命令后旧 `cmd_sgl` 副本和 `op_cont` 不会自动更新，必须重新从 `cmd_info` 获取；不要调用 `add_set_cmd_set` / `add_set_var_set`；
 - 内核不保证线程安全。
+
 
 ## 开源协议
 
