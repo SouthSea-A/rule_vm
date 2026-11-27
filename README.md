@@ -3650,10 +3650,6 @@ cl /nologo /O2 /std:c++latest /EHsc /utf-8 /I src /I example /I tests tests/seri
 - 自修改规则时，不要原地扩容/重写“当前正在解析的同一命令区间”；这会破坏正在使用的 `cmd_sgl`/`span`，应先保存必要数据，改写其他变量/命令，或改完后重新取命令；
 - 内核不保证线程安全。
 
-## 参考
-
-- 参考格式：[SouthSea-A/sync](https://github.com/SouthSea-A/sync)
-
 ## 开源协议
 
 MIT，详见 [`LICENSE`](LICENSE)。
