@@ -34,7 +34,7 @@
 |命令|`cmd_set_index + cmd_index`|`run_ip` 就是这两个索引；跳转/保存/恢复都用它|
 |变量|`var_mgr_index + var_index`|变量资源实例 + 变量编号；不依赖对象地址|
 |操作数区间|`begin + width`|变量按字节；命令按 `cmd_op_single` 个数|
-|命令内容|`cmd_sgl.index + content`|命令单例 + 操作数视图|
+|命令内容|`cmd_sgl.index + content`|命令视图 + 操作数视图|
 |调用栈|`run_ip` 序列|保存的是索引位置，不是函数指针|
 
 这带来几个直接结果：
@@ -650,8 +650,8 @@ class command_manager;
 |**cmd_data::cmd_mgr_res add_set(cmd_data::cmd_index index, cmd_data::cmd_type type, cmd_data::cmd_op_index pos_write_begin, cmd_data::cmd_op_width width_write_fill, bool is_increase_ref = true)**|同上，用 `width_write_fill` 指定填充宽度。|
 |**cmd_data::cmd_mgr_res add_set_ex(cmd_data::cmd_index index, cmd_data::cmd_type type, cmd_data::cmd_op_index pos_write_begin, const std::span<const cmd_data::cmd_op_single>& span_op_write, bool is_increase_ref, iterator& it_cursor)**|参数同 span 版 `add_set`，另用 `it_cursor` 定位。|
 |**cmd_data::cmd_mgr_res add_set_ex(cmd_data::cmd_index index, cmd_data::cmd_type type, cmd_data::cmd_op_index pos_write_begin, cmd_data::cmd_op_width width_write_fill, bool is_increase_ref, iterator& it_cursor)**|参数同宽度版 `add_set`，另用 `it_cursor` 定位。|
-|**cmd_data::cmd_mgr_res_cmd<value_type> get(cmd_data::cmd_index index)**|`index` 为命令编号。返回可变命令单例；不存在返回错误。|
-|**cmd_data::cmd_mgr_res_cmd<const_value_type> get(cmd_data::cmd_index index) const**|`index` 为命令编号。返回常量命令单例。|
+|**cmd_data::cmd_mgr_res_cmd<value_type> get(cmd_data::cmd_index index)**|`index` 为命令编号。返回可变命令视图；不存在返回错误。|
+|**cmd_data::cmd_mgr_res_cmd<const_value_type> get(cmd_data::cmd_index index) const**|`index` 为命令编号。返回常量命令视图。|
 |**cmd_data::cmd_mgr_res_size<size_type> get_ref(cmd_data::cmd_index index) const**|`index` 为命令编号。返回引用计数。|
 |**cmd_data::cmd_mgr_res_size<size_type> get_op_size(cmd_data::cmd_index index) const**|`index` 为命令编号。返回操作数数量。|
 |**cmd_data::cmd_mgr_res_cmd_single_it<iterator> get_it(cmd_data::cmd_index index)**|`index` 为命令编号。返回命令迭代器。|
@@ -1826,7 +1826,7 @@ bool check_cmd_op(
 
 |接口签名|注释|
 |---|---|
-|**std::optional<std::reference_wrapper<const std::span<op_cont>>> get_op_parse_ex(cmd_invoke_proxy_param& proxy_param, const rule_kit_cmd_sgl& cmd_parse_v, const std::initializer_list<cmd_data::cmd_op_index>& op_parse_v, bool is_alloc_rc, bool is_incr_ref)**|按 `op_parse_v` 给出的操作数下标，逐个解析 `cmd_parse_v` 到内部 `op_cont_buf`。`is_alloc_rc=true` 时先只做资源分配；若 `cmd_parse_v` 是当前命令，会在分配后刷新命令视图，再进行第二轮解析。成功返回指向 `span_op_cont` 的引用；`span_op_cont.size()==op_parse_v.size()`。失败返回 `nullopt` 并写 `int_info`。`is_incr_ref` 控制目标引用是否递增。返回的 span 只能用到下一次 `get_op_parse*`/`shrink_to_fit`/`clear`。|
+|**std::optional<std::reference_wrapper<const std::span<op_cont>>> get_op_parse_ex(cmd_invoke_proxy_param& proxy_param, const rule_kit_cmd_sgl& cmd_parse_v, const std::initializer_list<cmd_data::cmd_op_index>& op_parse_v, bool is_alloc_rc, bool is_incr_ref)**|按 `op_parse_v` 给出的操作数下标，逐个解析 `cmd_parse_v` 到内部 `op_cont_buf`。`is_alloc_rc=true` 时先只做资源分配；若 `cmd_parse_v` 引用当前 `proxy_param.get_cmd_info().get_cmd_sgl()`，会在分配后刷新命令视图，再进行第二轮解析。成功返回指向 `span_op_cont` 的引用；`span_op_cont.size()==op_parse_v.size()`。失败返回 `nullopt` 并写 `int_info`。`is_incr_ref` 控制目标引用是否递增。返回的 span 只能用到下一次 `get_op_parse*`/`shrink_to_fit`/`clear`。|
 |**std::optional<std::reference_wrapper<const std::span<op_cont>>> get_op_parse(cmd_invoke_proxy_param& proxy_param, const std::initializer_list<cmd_data::cmd_op_index>& op_parse_v, bool is_alloc_rc, bool is_incr_ref)**|使用当前命令（`proxy_param.get_cmd_info().get_cmd_sgl()`）调用 `get_op_parse_ex`。适合普通 handler 的“解析我关心的几个操作数”。|
 |**std::optional<std::reference_wrapper<const std::span<op_cont_span>>> get_op_cont_span(std::span<op_cont> op_parse_span_v)**|把 `get_op_parse` 得到的 `op_cont` 窗口投影到 `op_cont_span_buf`，用于写回/删除。成功返回 `span_op_cont_span` 的引用；失败返回 `nullopt`。只投影，不分配资源；容器扩容可能抛 `std::bad_alloc`。传入的 span 应来自当前 `get_op_parse`，不要用旧 span。|
 
@@ -1835,7 +1835,7 @@ bool check_cmd_op(
 |形参|作用|
 |---|---|
 |`proxy_param`|当前 handler 参数；提供当前命令、`int_info_save` 和资源分配上下文|
-|`cmd_parse_v`|显式要解析的命令；`get_op_parse` 使用当前命令。只有它引用 `proxy_param.get_cmd_info().get_cmd_sgl()` 时才会在 alloc 后自动刷新；传入副本不会自动更新。|
+|`cmd_parse_v`|显式要解析的命令；`get_op_parse` 使用当前命令。只有它引用同一个 `proxy_param.get_cmd_info().get_cmd_sgl()` 对象时才会在 alloc 后自动刷新；传入副本不会自动更新。|
 |`op_parse_v`|要解析的操作数下标列表；顺序决定返回 span 的顺序|
 |`is_alloc_rc`|`true` 时对需要资源的操作数执行 `alloc`；`false` 只解析|
 |`is_incr_ref`|控制解析时目标引用是否递增；与 `is_alloc_rc` 一起传给资源分配|
@@ -2043,7 +2043,8 @@ getter：
 alloc
 dealloc
 write_op_cont_span
-get_op_parse / get_op_parse_ex
+get_op_parse
+get_op_parse_ex（当前命令视图）
 ```
 
 因此 handler 不需要手动 refresh；但 `add_set_cmd_set` 没有 `cmd_invoke_proxy_param`，不会自动刷新，运行期应避免使用。
@@ -2124,7 +2125,7 @@ std::span<rule_kit::rule_kit_var_base> bytes = var_info->get_span_cont();
 |---|---|---|
 |**mgr_index**|`cmd_mgr_index`|命令所属的资源实例编号；用于在多个命令资源池之间定位。|
 |**index**|`cmd_index`|命令在该实例内的索引；与 `mgr_index` 唯一确定一条命令。|
-|**type**|`cmd_type&`|命令类型引用；指向命令单例内部字段，用于判断该命令应如何解释操作数。|
+|**type**|`cmd_type&`|命令类型引用；指向命令类型字段，用于判断该命令应如何解释操作数。|
 |**begin**|`cmd_op_index`|本次读取的操作数起始下标，等于传入的 `cmd_op_begin_v`。|
 |**width**|`cmd_op_width`|本次读取的操作数数量，等于传入的 `read_width_v`。`span_cont.size()` 应与此值一致。|
 |**ref**|`std::size_t`|命令当前的引用计数。`1` 通常表示只有资源池自身持有；大于 `1` 表示仍有其他 owner/目标引用。读取本身不会改变它。|
@@ -3648,6 +3649,10 @@ cl /nologo /O2 /std:c++latest /EHsc /utf-8 /I src /I example /I tests tests/seri
 - `rule_int_info` 仅作为执行诊断，不要修改其结构；
 - 自修改规则时，不要原地扩容/重写“当前正在解析的同一命令区间”；这会破坏正在使用的 `cmd_sgl`/`span`，应先保存必要数据，改写其他变量/命令，或改完后重新取命令；
 - 内核不保证线程安全。
+
+## 参考
+
+- 参考格式：[SouthSea-A/sync](https://github.com/SouthSea-A/sync)
 
 ## 开源协议
 
