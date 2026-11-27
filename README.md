@@ -120,7 +120,7 @@
 | 序列化 | 流式读写、固定 raw 布局、CRC32、magic/version/`sizeof` 校验 |
 | 错误 | 统一 `kernel_error`；诊断 `rule_int_info`；不可回滚抛 `kernel_error_throw` |
 | 内存 | 单一 allocator 贯穿；门面复用操作数缓冲 |
-| 部署 | Header-only，C++23 |
+| 部署 | header-only，C++23 |
 
 ## 项目结构
 
@@ -386,7 +386,10 @@ rule_int_info_cont_act
 ### manager
 
 ```cpp
-template<typename T,std::size_t MAX = mgr_data::BLOCK_SIZE_DEFAULT,typename allocator_manager = std::allocator<T>>
+template<
+    typename T,
+    std::size_t MAX = mgr_data::BLOCK_SIZE_DEFAULT,
+    typename allocator_manager = std::allocator<T>>
 class manager;
 ```
 
@@ -444,7 +447,10 @@ class manager;
 ### page
 
 ```cpp
-template<typename T, std::size_t MAX, typename allocator_page>
+template<
+    typename T,
+    std::size_t MAX,
+    typename allocator_page>
 class page;
 ```
 
@@ -469,7 +475,11 @@ class page;
 ### cache_mapping
 
 ```cpp
-template<typename T, typename U, std::size_t MAX, typename allocator_cache = std::allocator<U>>
+template<
+    typename T,
+    typename U,
+    std::size_t MAX,
+    typename allocator_cache = std::allocator<U>>
 class cache_mapping;
 ```
 
@@ -494,7 +504,10 @@ class cache_mapping;
 ### cache_prefix_mapping
 
 ```cpp
-template<typename T, typename U, typename allocator_cache = std::allocator<T>>
+template<
+    typename T,
+    typename U,
+    typename allocator_cache = std::allocator<T>>
 class cache_prefix_mapping;
 ```
 
@@ -527,7 +540,9 @@ class cache_prefix_mapping;
 ### variable_manager
 
 ```cpp
-template<typename T, typename var_mgr_alloc = std::allocator<T>>
+template<
+    typename T,
+    typename var_mgr_alloc = std::allocator<T>>
 class variable_manager;
 ```
 
@@ -578,7 +593,9 @@ class variable_manager;
 ### var_content
 
 ```cpp
-template<typename T, typename var_cont_alloc = std::allocator<T>>
+template<
+    typename T,
+    typename var_cont_alloc = std::allocator<T>>
 class var_content;
 ```
 
@@ -608,7 +625,8 @@ class var_content;
 ### command_manager
 
 ```cpp
-template<typename cmd_mgr_alloc = std::allocator<cmd_data::cmd_op_single>>
+template<
+    typename cmd_mgr_alloc = std::allocator<cmd_data::cmd_op_single>>
 class command_manager;
 ```
 
@@ -1260,7 +1278,12 @@ class resource;
 `actuator` 是解释器。
 
 ```cpp
-template<typename rc_cmd, typename stk_t, typename cmd_def_set_t, typename cb_t, typename outer>
+template<
+    typename rc_cmd,
+    typename stk_t,
+    typename cmd_def_set_t,
+    typename cb_t,
+    typename outer>
     requires act_conc::concept_rc_cmd<rc_cmd>
         && act_conc::concept_act_stk<stk_t, rc_cmd>
         && act_conc::concept_cmd_def_set<cmd_def_set_t, rc_cmd, typename cb_t::call_back_interrupt_info_type, outer>
@@ -1283,7 +1306,7 @@ class actuator;
 |接口签名|注释|
 |---|---|
 |**actuator() = delete**|无参数。禁止默认构造；必须绑定命令池、栈、定义表和回调。|
-|**explicit actuator(rc_cmd& cmd_actuate_set_v, stk_t& stack_v, cmd_def_set_t& cmd_define_set_v, cb_t& call_back_set_v, outer\* data_outer_v)**|`cmd_actuate_set_v` 为命令资源池；`stack_v` 为调用栈；`cmd_define_set_v` 为命令定义表；`call_back_set_v` 为回调集合；`data_outer_v` 为组合 outer 指针。|
+|**explicit actuator(rc_cmd& cmd_actuate_set_v, stk_t& stack_v, cmd_def_set_t& cmd_define_set_v, cb_t& call_back_set_v, outer\* data_outer_v)**|`cmd_actuate_set_v` 为命令资源池；`stack_v` 为调用栈；`cmd_define_set_v` 为命令定义表；`call_back_set_v` 为回调集合；`data_outer_v` 为组合 `outer` 指针。|
 |**void set(rc_cmd& rc_cmd_v, stk_t& stack_v, cmd_def_set_t& cmd_define_set_v, cb_t& call_back_set_v, outer\* data_outer_v)**|五个形参含义同上；重新绑定引用，用于 `copy_to`。|
 |**void run(const act_data::act_cmd_ip<rc_cmd>& ip_begin, bool is_clear_stack = true)**|`ip_begin` 为起始 ip；`is_clear_stack=true` 先清空调用栈，`false` 保留当前栈。返回 `void`；执行错误通过回调 `is_end` 传递，不捕获异常。|
 
@@ -1344,7 +1367,9 @@ invalid_cmd_type
 ### 完整签名
 
 ```cpp
-template<typename alloc_rule = std::allocator<int>, typename user_outer = std::monostate>
+template<
+    typename alloc_rule = std::allocator<int>,
+    typename user_outer = std::monostate>
 class rule;
 ```
 
@@ -1461,7 +1486,7 @@ decltype(auto) get_var_set(this self_this&& self) noexcept;
 |---|---|
 |**template<typename tgt_t> bool transform_raw_bytes_to_run(rule_int_info& int_info_save, const std::span<rule_var_base_t>& span_raw_bytes_v, tgt_t& res_save)**|`int_info_save` 为错误输出；`span_raw_bytes_v` 为 raw bytes；`res_save` 为输出目标。返回是否转换成功。|
 |**template<typename tgt_t> bool transform_tgt_to_raw_bytes_run(rule_int_info& int_info_save, const tgt_t& tgt_v, const std::span<rule_var_base_t>& span_raw_bytes_save)**|`int_info_save` 为错误输出；`tgt_v` 为输入目标；`span_raw_bytes_save` 为输出 raw bytes。返回是否成功。|
-|**bool get_parse_op_run(rule_int_info& int_info_save, cmd_act_param& run_param_v, const rule_cmd_sgl& cmd_v, cmd_op_index op_index_v, parse_op& op_save, bool is_alloc_rc, bool is_incr_ref)**|`int_info_save` 为诊断输出；`run_param_v` 为执行参数；`cmd_v` 为命令；`op_index_v` 为操作数下标；`op_save` 为输出解析结果；`is_alloc_rc` 控制资源分配；`is_incr_ref` 控制引用递增。返回是否成功。|
+|**bool get_parse_op_run(rule_int_info& int_info_save, cmd_act_param& run_param_v, const rule_cmd_sgl& cmd_v, cmd_op_index op_index_v, parse_op& op_save, bool is_alloc_rc, bool is_incr_ref, bool is_alloc_only = false)**|`int_info_save` 为诊断输出；`run_param_v` 为执行参数；`cmd_v` 为命令；`op_index_v` 为操作数下标；`op_save` 为输出解析结果；`is_alloc_rc` 控制资源分配；`is_incr_ref` 控制引用递增；`is_alloc_only=true` 时只分配资源，不解析、不保存 op 引用。返回是否成功。|
 |**bool get_parse_op_mul_run(rule_int_info& int_info_save, cmd_act_param& run_param_v, const std::initializer_list<op_handle_set<alloc_rule>>& op_set)**|`int_info_save` 为诊断；`run_param_v` 为执行参数；`op_set` 为批量解析配置。返回是否全部成功。|
 |**void get_op_parse_span_run(parse_op& op_v, op_parse_span& op_span_save)**|`op_v` 为输入解析结果；`op_span_save` 为输出投影。返回 `void`。|
 |**bool get_op_parse_span_mul_run(const std::initializer_list<op_span_set<alloc_rule>>& op_span_get_set)**|`op_span_get_set` 为批量投影配置。返回是否全部成功。|
@@ -1511,7 +1536,7 @@ decltype(auto) get_var_set(this self_this&& self) noexcept;
 
 |接口签名|注释|
 |---|---|
-|**bool get_parse_op(rule_int_info& int_info_save, rule_cmd_act_param<alloc, outer>& run_param_v, const rule_cmd_sgl& cmd_v, cmd_op_index op_index_v, parse_op& op_save, bool is_alloc_rc, bool is_incr_ref)**|`int_info_save` 为错误输出；`run_param_v` 为执行参数；`cmd_v` 为命令；`op_index_v` 为操作数下标；`op_save` 为输出解析结果；`is_alloc_rc` 控制资源分配；`is_incr_ref` 控制引用递增。返回是否成功。|
+|**bool get_parse_op(rule_int_info& int_info_save, rule_cmd_act_param<alloc, outer>& run_param_v, const rule_cmd_sgl& cmd_v, cmd_op_index op_index_v, parse_op& op_save, bool is_alloc_rc, bool is_incr_ref, bool is_alloc_only = false)**|`int_info_save` 为错误输出；`run_param_v` 为执行参数；`cmd_v` 为命令；`op_index_v` 为操作数下标；`op_save` 为输出解析结果；`is_alloc_rc` 控制资源分配；`is_incr_ref` 控制引用递增；`is_alloc_only=true` 时只分配资源，不解析、不保存 op 引用。返回是否成功。|
 |**bool get_parse_op_mul(rule_int_info& int_info_save, rule_cmd_act_param<alloc, outer>& run_param_v, const std::initializer_list<op_handle_set<alloc>>& op_set)**|`int_info_save` 为错误输出；`run_param_v` 为执行参数；`op_set` 为批量解析配置。返回是否全部成功。|
 |**void get_op_parse_span(parse_op& op_v, op_span& op_span_save)**|`op_v` 为输入解析结果；`op_span_save` 为输出投影。返回 `void`。|
 |**bool get_op_parse_span_mul(const std::initializer_list<op_span_set<alloc>>& op_span_get_set)**|`op_span_get_set` 为批量投影配置。返回是否全部成功。|
@@ -1543,7 +1568,9 @@ decltype(auto) get_var_set(this self_this&& self) noexcept;
 ### 完整签名
 
 ```cpp
-template<typename alloc_rule_kit = std::allocator<int>, typename user_outer = std::monostate>
+template<
+    typename alloc_rule_kit = std::allocator<int>,
+    typename user_outer = std::monostate>
 class rule_kit;
 ```
 
@@ -1570,7 +1597,7 @@ class rule_kit;
 |**cmd_invoke_res**|`owner_t::cmd_act_res`|执行器接收的命令返回结果。直接 act handler 返回它；门面 handler 返回 `rule_kit_cmd_res`。|
 |**cmd_invoke_act_ip**|`owner_t::run_ip`|执行位置。用于 `run`、`resume`、`save/load` 以及回调参数；由命令管理器迭代器和栈共同表达。|
 |**cmd_invoke_proxy_param**|`rule_kit_cmd_param<alloc_rule_kit, user_outer>`|门面 handler 参数。包含 `owner`、`int_info_save`、`cmd_info`，所有需要 `proxy_param` 的门面校验/解析接口都由它提供错误上下文。|
-|**cmd_invoke_info**|`rule_kit_cmd_info<alloc_rule_kit, user_outer>`|当前命令信息。包含当前 ip、命令管理器和命令单例；用于 `check_cmd`/`get_op_parse` 等“使用当前命令”的重载。|
+|**cmd_invoke_info**|`rule_kit_cmd_info<alloc_rule_kit, user_outer>`|当前命令信息。包含当前 ip、命令管理器和命令视图；用于 `check_cmd`/`get_op_parse` 等“使用当前命令”的重载。|
 |**cmd_invoke_def**|`owner_t::cmd_def_act`|命令定义函数指针，签名为 `act_run_int<cmd_act, rule_int_info> (*)(act_run_param<cmd_act, outer_t>&)`。`add_set_cmd_def` 接收该类型，不是 `std::function`。|
 |**cmd_invoke_proxy**|`rule_kit_cmd_proxy_call<alloc_rule_kit, user_outer>`|把“接收 `rule_kit_cmd_param&` 的门面 handler”适配成“接收 act 参数”的可注册函数指针。用于编写更友好的门面命令实现。|
 
@@ -1799,7 +1826,7 @@ bool check_cmd_op(
 
 |接口签名|注释|
 |---|---|
-|**std::optional<std::reference_wrapper<const std::span<op_cont>>> get_op_parse_ex(cmd_invoke_proxy_param& proxy_param, const rule_kit_cmd_sgl& cmd_parse_v, const std::initializer_list<cmd_data::cmd_op_index>& op_parse_v, bool is_alloc_rc, bool is_incr_ref)**|按 `op_parse_v` 给出的操作数下标，逐个解析 `cmd_parse_v` 到内部 `op_cont_buf`。成功返回指向 `span_op_cont` 的引用；`span_op_cont.size()==op_parse_v.size()`。失败返回 `nullopt` 并写 `int_info`。`is_alloc_rc=true` 时为需要资源的操作数分配/增加引用；`is_incr_ref` 控制目标引用是否递增。返回的 span 只能用到下一次 `get_op_parse*`/`shrink_to_fit`/`clear`。|
+|**std::optional<std::reference_wrapper<const std::span<op_cont>>> get_op_parse_ex(cmd_invoke_proxy_param& proxy_param, const rule_kit_cmd_sgl& cmd_parse_v, const std::initializer_list<cmd_data::cmd_op_index>& op_parse_v, bool is_alloc_rc, bool is_incr_ref)**|按 `op_parse_v` 给出的操作数下标，逐个解析 `cmd_parse_v` 到内部 `op_cont_buf`。`is_alloc_rc=true` 时先只做资源分配；若 `cmd_parse_v` 是当前命令，会在分配后刷新命令视图，再进行第二轮解析。成功返回指向 `span_op_cont` 的引用；`span_op_cont.size()==op_parse_v.size()`。失败返回 `nullopt` 并写 `int_info`。`is_incr_ref` 控制目标引用是否递增。返回的 span 只能用到下一次 `get_op_parse*`/`shrink_to_fit`/`clear`。|
 |**std::optional<std::reference_wrapper<const std::span<op_cont>>> get_op_parse(cmd_invoke_proxy_param& proxy_param, const std::initializer_list<cmd_data::cmd_op_index>& op_parse_v, bool is_alloc_rc, bool is_incr_ref)**|使用当前命令（`proxy_param.get_cmd_info().get_cmd_sgl()`）调用 `get_op_parse_ex`。适合普通 handler 的“解析我关心的几个操作数”。|
 |**std::optional<std::reference_wrapper<const std::span<op_cont_span>>> get_op_cont_span(std::span<op_cont> op_parse_span_v)**|把 `get_op_parse` 得到的 `op_cont` 窗口投影到 `op_cont_span_buf`，用于写回/删除。成功返回 `span_op_cont_span` 的引用；失败返回 `nullopt`。只投影，不分配资源；容器扩容可能抛 `std::bad_alloc`。传入的 span 应来自当前 `get_op_parse`，不要用旧 span。|
 
@@ -1808,7 +1835,7 @@ bool check_cmd_op(
 |形参|作用|
 |---|---|
 |`proxy_param`|当前 handler 参数；提供当前命令、`int_info_save` 和资源分配上下文|
-|`cmd_parse_v`|显式要解析的命令；`get_op_parse` 使用当前命令|
+|`cmd_parse_v`|显式要解析的命令；`get_op_parse` 使用当前命令。只有它引用 `proxy_param.get_cmd_info().get_cmd_sgl()` 时才会在 alloc 后自动刷新；传入副本不会自动更新。|
 |`op_parse_v`|要解析的操作数下标列表；顺序决定返回 span 的顺序|
 |`is_alloc_rc`|`true` 时对需要资源的操作数执行 `alloc`；`false` 只解析|
 |`is_incr_ref`|控制解析时目标引用是否递增；与 `is_alloc_rc` 一起传给资源分配|
@@ -1883,7 +1910,13 @@ bool check_cmd_op(
 |形参|作用|
 |---|---|
 |`cmd_t_v`|命令类型键；执行时用它查 `cmd_def_set`|
-|`cmd_def_v`|执行函数指针；通常应为有效函数；传 `nullptr` 会让该命令类型没有可执行实现|返回：`void`。异常：不主动抛异常；注册表插入可能分配并抛 `std::bad_alloc` 等标准库异常。|
+|`cmd_def_v`|执行函数指针；通常应为有效函数；传 `nullptr` 会让该命令类型没有可执行实现|
+
+返回：`void`。
+
+异常：不主动抛异常；注册表插入可能分配并抛 `std::bad_alloc` 等标准库异常。
+
+#### 存储写入
 
 |接口签名|注释|
 |---|---|
@@ -1978,7 +2011,7 @@ bool check_cmd_op(
 |---|---|---|
 |**owner**|`rule_kit&`|当前门面引用。handler 内通过它调用 `check_*`/`get_op_parse`/`add_set_*` 等；不要保存到 handler 外。|
 |**int_info_save**|`rule_int_info&`|诊断写回对象。所有带 `proxy_param` 的失败接口都会把错误阶段、`kernel_error`、变量/命令上下文写入这里；handler 失败后应读取并传播。|
-|**cmd_info**|`rule_kit_cmd_info<alloc, user_outer>`|当前命令信息，含 ip、命令管理器、命令单例；`check_cmd`/`get_op_parse` 的“当前命令”重载依赖它。|
+|**cmd_info**|`rule_kit_cmd_info<alloc, user_outer>`|当前命令信息，含 ip、命令管理器、命令视图；`check_cmd`/`get_op_parse` 的“当前命令”重载依赖它。`alloc/dealloc/write_op_cont_span/get_op_parse` 返回前会刷新其中的命令视图。|
 
 getter：
 
@@ -1986,23 +2019,34 @@ getter：
 |---|---|
 |**rule_kit& get_owner()**|当前门面；用于调用门面接口。|
 |**rule_int_info& get_int_info_save()**|诊断写回；失败后检查具体错误。|
-|**rule_kit_cmd_info& get_cmd_info()**|当前命令信息；用于取 ip/命令管理器/命令单例。|
+|**rule_kit_cmd_info& get_cmd_info()**|当前命令信息；用于取 ip/命令管理器/命令视图。|
 
 #### rule_kit_cmd_info
 
 |成员|类型|注释|
 |---|---|---|
 |**cmd_ip**|`rule_kit_cmd_ip<alloc>`|当前命令 ip。用于日志、断点、跳转和 `save` 的恢复位置。|
-|**cmd_mgr**|`cmd_mgr&`|当前命令资源实例的管理器。可直接查询命令/操作数，但修改后 span 失效。|
-|**cmd_sgl**|`rule_kit_cmd_sgl&`|当前命令单例。包含命令类型和操作数视图，是 `check_cmd`/`get_op_parse` 的默认命令。|
+|**cmd_mgr**|`std::reference_wrapper<cmd_mgr>`|当前命令资源实例的管理器。保存的是可重绑定引用；接口内部重新解析命令时会更新它，不拥有管理器。|
+|**cmd_sgl**|`rule_kit_cmd_sgl`|当前命令视图值。包含命令类型引用和操作数 span；不是命令数据副本，仍可修改底层类型/操作数。`alloc/dealloc/write_op_cont_span/get_op_parse` 返回前会就地刷新该视图。|
 
 getter：
 
 |接口签名|注释|
 |---|---|
 |**rule_kit_cmd_ip<alloc> get_cmd_ip()**|当前 ip；按值返回，可安全用于日志/比较。|
-|**cmd_mgr& get_cmd_mgr()**|当前命令管理器；用于读取命令存储。|
-|**rule_kit_cmd_sgl& get_cmd_sgl()**|当前命令；用于读取类型和操作数。|
+|**cmd_mgr& get_cmd_mgr()**|当前命令管理器；用于读取命令存储。返回值来自可重绑定的 `reference_wrapper`。|
+|**rule_kit_cmd_sgl& get_cmd_sgl()**|当前命令视图；用于读取类型和操作数。扩容后应只通过该 getter 重新取得，旧的视图副本不会自动更新。|
+
+`rule_kit` 会在以下接口返回 handler 前，按 `cmd_ip` 重新解析命令管理器并覆盖 `cmd_sgl`：
+
+```text
+alloc
+dealloc
+write_op_cont_span
+get_op_parse / get_op_parse_ex
+```
+
+因此 handler 不需要手动 refresh；但 `add_set_cmd_set` 没有 `cmd_invoke_proxy_param`，不会自动刷新，运行期应避免使用。
 
 #### rule_kit_cmd_res
 
@@ -2485,10 +2529,10 @@ rule_desg
 |`jmp`|跳转|3|目标、条件、比较结果；条件匹配时跳转|
 |`call`|调用|1|压栈并跳到目标|
 |`ret`|返回|0|弹栈；没有栈时结束|
-|`add`|加|3|目标 = 左 + 右|
-|`sub`|减|3|目标 = 左 - 右|
-|`mul`|乘|3|目标 = 左 * 右|
-|`div`|除|3|目标 = 左 / 右|
+|`add`|加|3|`目标 = 左 + 右`|
+|`sub`|减|3|`目标 = 左 - 右`|
+|`mul`|乘|3|`目标 = 左 * 右`|
+|`div`|除|3|`目标 = 左 / 右`|
 |`alloc`|分配|1|分配变量或命令目标|
 |`dealloc`|释放|1|释放变量或命令目标|
 

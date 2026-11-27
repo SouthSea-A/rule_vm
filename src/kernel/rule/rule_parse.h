@@ -86,7 +86,7 @@ namespace rule_parse
 	};
 
 	template<typename alloc_rule, typename outer>
-	inline bool get_parse_op(rdata::rule_int_info& int_info_save, rdata::rule_cmd_act_param<alloc_rule, outer>& run_param_v, const rdata::rule_cmd_sgl& rule_cmd_sgl_v, cmd_data::cmd_op_index op_parse_index_v, parse_data::op<alloc_rule>& op_parse_res_save, bool is_alloc_rc, bool is_incr_ref)
+	inline bool get_parse_op(rdata::rule_int_info& int_info_save, rdata::rule_cmd_act_param<alloc_rule, outer>& run_param_v, const rdata::rule_cmd_sgl& rule_cmd_sgl_v, cmd_data::cmd_op_index op_parse_index_v, parse_data::op<alloc_rule>& op_parse_res_save, bool is_alloc_rc, bool is_incr_ref, bool is_alloc_only = false)
 	{
 		using var_mgr = rdata::rule_var_mgr<alloc_rule>;
 		using cmd_mgr = rdata::rule_cmd_mgr<alloc_rule>;
@@ -317,6 +317,7 @@ namespace rule_parse
 
 		auto handle_cmd = [&](cmd_data::cmd_target& cmd_tgt_ref) -> bool
 		{
+			
 			auto set_int_info_cmd = [&]<typename error_code_t>(const error_code_t & error_v, rdata::rule_int_t int_t_v) -> void
 				{
 					rdata::set_int_info
@@ -626,6 +627,34 @@ namespace rule_parse
 
 			return true;
 		};
+
+		if (is_alloc_only == true)
+		{
+			if (is_alloc_rc == false)
+				return true;
+
+			return std::visit
+			(
+				rdata::t_case_distribute
+				{
+					[&](cmd_data::imm_target&) -> bool
+					{
+						return true;
+					},
+					[&](cmd_data::var_target& var_tgt_ref) -> bool
+					{
+						cmd_data::var_target var_tgt_copy = var_tgt_ref;
+						return ralloc::alloc_rc<alloc_rule, outer>(int_info_save, run_param_v, var_tgt_copy, is_incr_ref, is_incr_ref);
+					},
+					[&](cmd_data::cmd_target& cmd_tgt_ref) -> bool
+					{
+						cmd_data::cmd_target cmd_tgt_copy = cmd_tgt_ref;
+						return ralloc::alloc_rc<alloc_rule, outer>(int_info_save, run_param_v, cmd_tgt_copy, is_incr_ref, is_incr_ref);
+					}
+				},
+				op_parse_v
+			);
+		}
 
 		return std::visit(rdata::t_case_distribute{ handle_imm ,handle_var ,handle_cmd }, op_parse_v);
 	}

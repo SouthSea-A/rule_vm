@@ -308,6 +308,9 @@ namespace rule_tool
 			if (op_parse_v.size() > this->op_cont_buf.size())
 				this->op_cont_buf.resize(op_parse_v.size());
 
+			const bool is_current_cmd =
+				std::addressof(cmd_parse_v) == std::addressof(proxy_param.get_cmd_info().get_cmd_sgl());
+
 			if (is_alloc_rc == true)
 			{
 				typename std::initializer_list<cmd_data::cmd_op_index>::const_iterator it_alloc = op_parse_v.begin();
@@ -315,12 +318,21 @@ namespace rule_tool
 
 				while (it_alloc != op_parse_v.end())
 				{
-					if (this->owner.get_parse_op_run(proxy_param.get_int_info_save(), proxy_param.get_param_orign(), cmd_parse_v, *it_alloc, op_alloc, true, is_incr_ref) == false)
+					if (this->owner.get_parse_op_run(proxy_param.get_int_info_save(), proxy_param.get_param_orign(), cmd_parse_v, *it_alloc, op_alloc, true, is_incr_ref, true) == false)
+					{
+						(void)proxy_param.sync_cmd_info();
+						return std::nullopt;
+					}
+
+					if (is_current_cmd == true && proxy_param.sync_cmd_info() == false)
 						return std::nullopt;
 
 					++it_alloc;
 				}
 			}
+
+			if (is_current_cmd == true && proxy_param.sync_cmd_info() == false)
+				return std::nullopt;
 
 			typename std::initializer_list<cmd_data::cmd_op_index>::const_iterator it = op_parse_v.begin();
 			std::size_t index_current = 0;
@@ -339,7 +351,10 @@ namespace rule_tool
 				);
 
 				if (parse_res == false)
+				{
+					(void)proxy_param.sync_cmd_info();
 					return std::nullopt;
+				}
 
 				index_current++;
 				++it;
@@ -347,6 +362,7 @@ namespace rule_tool
 
 			this->span_op_cont = std::span(this->op_cont_buf.begin(), op_parse_v.size());
 
+			(void)proxy_param.sync_cmd_info();
 			return std::ref(this->span_op_cont);
 		}
 		std::optional<std::reference_wrapper<const std::span<op_cont>>> get_op_parse(cmd_invoke_proxy_param& proxy_param, const std::initializer_list<cmd_data::cmd_op_index>& op_parse_v, bool is_alloc_rc, bool is_incr_ref)
@@ -375,17 +391,23 @@ namespace rule_tool
 		template<typename alloc_tgt_t>
 		bool alloc(cmd_invoke_proxy_param& proxy_param, const alloc_tgt_t& alloc_tgt_v, bool is_incr_ref_ow, bool is_incr_ref_tgt)
 		{
-			return this->owner.alloc_rc_run(proxy_param.get_int_info_save(), proxy_param.get_param_orign(), alloc_tgt_v, is_incr_ref_ow, is_incr_ref_tgt);
+			const bool res = this->owner.alloc_rc_run(proxy_param.get_int_info_save(), proxy_param.get_param_orign(), alloc_tgt_v, is_incr_ref_ow, is_incr_ref_tgt);
+			(void)proxy_param.sync_cmd_info();
+			return res;
 		}
 	public:
 		template<typename dealloc_tgt_t>
 		bool dealloc(cmd_invoke_proxy_param& proxy_param, const dealloc_tgt_t& dealloc_tgt_v)
 		{
-			return this->owner.dealloc_rc_run(proxy_param.get_int_info_save(), proxy_param.get_param_orign(), dealloc_tgt_v);
+			const bool res = this->owner.dealloc_rc_run(proxy_param.get_int_info_save(), proxy_param.get_param_orign(), dealloc_tgt_v);
+			(void)proxy_param.sync_cmd_info();
+			return res;
 		}
 		bool write_op_cont_span(cmd_invoke_proxy_param& proxy_param, op_cont& write_tgt, op_cont& write_src)
 		{
-			return this->owner.write_op_span_run(proxy_param.get_int_info_save(), proxy_param.get_param_orign(), write_tgt, write_src);
+			const bool res = this->owner.write_op_span_run(proxy_param.get_int_info_save(), proxy_param.get_param_orign(), write_tgt, write_src);
+			(void)proxy_param.sync_cmd_info();
+			return res;
 		}
 	public:
 		void set_cb_int(const rule_kit_cmd_cb_int<alloc_rule_kit, user_outer>& cb_int_v)

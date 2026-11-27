@@ -24,7 +24,6 @@ enum class [[nodiscard]] kernel_error
 
 	manager__cache_mapping__del__order_out_of_range,
 	manager__cache_mapping__del__erase_unexpected,
-	//--------------------------------------------------------------------
 
 	manager__page__get_free__empty,
 
@@ -68,7 +67,6 @@ enum class [[nodiscard]] kernel_error
 	manager__page__cut__index_invalid,
 	manager__page__cut__size_max,
 	manager__page__cut__element_missing,
-	//--------------------------------------------------------------------
 
 	manager__cache_prefix_mapping__init_rng__allocate_unexpected,
 	manager__cache_prefix_mapping__init_rng__construct_unexpected,
@@ -91,7 +89,6 @@ enum class [[nodiscard]] kernel_error
 	manager__cache_prefix_mapping__copy_construct__clone_unexpected,
 	manager__cache_prefix_mapping__copy_assign__clone_unexpected,
 	manager__cache_prefix_mapping__move_assign__clone_unexpected,
-	//--------------------------------------------------------------------
 
 	manager__iterator__test_validity_iterator__manager_invalid,
 
@@ -99,7 +96,6 @@ enum class [[nodiscard]] kernel_error
 	manager__iterator__operator_arrow__iterator_invalid,
 	manager__iterator__operator_compare__manager_mismatch,
 	manager__iterator__operator_minus__manager_mismatch,
-	//--------------------------------------------------------------------
 
 	manager__manager__get_block_ref__index_invalid,
 	manager__manager__get_block_ref_const__index_invalid,
@@ -148,7 +144,6 @@ enum class [[nodiscard]] kernel_error
 
 	manager__manager__copy_construct__copy_unexpected,
 	manager__manager__copy_assign__copy_unexpected,
-	//--------------------------------------------------------------------
 
 	variable__var_content__var_content__resize_unexpected,
 	variable__var_content__copy_construct__copy_unexpected,
@@ -169,10 +164,8 @@ enum class [[nodiscard]] kernel_error
 	variable__var_content__ensure__allocate_unexpected,
 
 	variable__var_content__get__content_not_contiguous,
-	//--------------------------------------------------------------------
 
 	variable__var_sgl__set_content__copy_unexpected,
-	//--------------------------------------------------------------------
 
 	variable__variable_manager__test_validity_var_index_it__index_invalid,
 	variable__variable_manager__test_validity_var_index_it_const__index_invalid,
@@ -187,21 +180,17 @@ enum class [[nodiscard]] kernel_error
 
 	variable__variable_manager__copy_construct__copy_unexpected,
 	variable__variable_manager__copy_assign__copy_unexpected,
-	//--------------------------------------------------------------------
 
 	command__command_manager__del_it__iterator_invalid,
-	//--------------------------------------------------------------------
 
 	resource__rc_sgl__rc_sgl__copy_unexpected,
 	resource__rc_sgl__set_content__copy_unexpected,
-	//--------------------------------------------------------------------
 
 	resource__resource__get_instance_by_rc_index__index_invalid,
 	resource__resource__get_instance_const_by_rc_index__index_invalid,
 
 	resource__resource__add__index_invalid,
 	resource__resource__destroy_it__iterator_invalid,
-	//--------------------------------------------------------------------
 
 	serialize__magic_mismatch,
 	serialize__version_mismatch,
@@ -216,7 +205,6 @@ enum class [[nodiscard]] kernel_error
 	serialize__cmd_restore_failed,
 	serialize__manager_restore_failed,
 	serialize__stack_restore_failed,
-	//--------------------------------------------------------------------
 };
 
 struct kernel_error_throw

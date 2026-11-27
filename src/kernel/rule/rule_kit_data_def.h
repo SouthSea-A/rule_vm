@@ -48,8 +48,8 @@ namespace rule_tool
 		using cmd_mgr_kit = typename rule<alloc_rule_kit, user_outer>::cmd_mgr;
 	public:
 		rule_kit_cmd_ip<alloc_rule_kit> cmd_ip;
-		cmd_mgr_kit& cmd_mgr;
-		rule_kit_cmd_sgl& cmd_sgl;
+		std::reference_wrapper<cmd_mgr_kit> cmd_mgr;
+		rule_kit_cmd_sgl cmd_sgl;
 	public:
 		template<typename self_this>
 		decltype(auto) get_cmd_ip(this self_this&& self) noexcept
@@ -59,7 +59,7 @@ namespace rule_tool
 		template<typename self_this>
 		decltype(auto) get_cmd_mgr(this self_this&& self) noexcept
 		{
-			return std::forward_like<self_this>(self.cmd_mgr);
+			return self.cmd_mgr.get();
 		}
 		template<typename self_this>
 		decltype(auto) get_cmd_sgl(this self_this&& self) noexcept
@@ -83,11 +83,27 @@ namespace rule_tool
 		using cmd_invoke_param = typename rule<alloc_rule_kit, user_outer>::cmd_act_param;
 	private:
 		cmd_invoke_param& param_orign;
-	private:
 		template<typename self_this>
 		decltype(auto) get_param_orign(this self_this&& self) noexcept
 		{
 			return std::forward_like<self_this>(self.param_orign);
+		}
+		bool sync_cmd_info()
+		{
+			auto cmd_mgr_res = this->owner.get_owner().get_cmd_set().get(this->cmd_info.cmd_ip.get_cmd_set_index());
+
+			if (cmd_mgr_res.has_value() == false)
+				return false;
+
+			auto& cmd_mgr_v = cmd_mgr_res.value().get().get_content();
+			auto it_res = cmd_mgr_v.get_it(this->cmd_info.cmd_ip.get_index());
+
+			if (it_res.has_value() == false)
+				return false;
+
+			this->cmd_info.cmd_mgr = std::ref(cmd_mgr_v);
+			this->cmd_info.cmd_sgl = *it_res.value();
+			return true;
 		}
 	public:
 		rule_kit<alloc_rule_kit, user_outer>& owner;

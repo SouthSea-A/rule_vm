@@ -1,7 +1,5 @@
 ﻿#pragma once
 
-// 内核根命名空间短别名。
-// 所有跨命名空间引用一律写成“别名::名称”，禁止 using namespace。
 
 namespace rule_page { }
 namespace rule_page_data_def { }

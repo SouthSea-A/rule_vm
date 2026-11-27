@@ -13,6 +13,7 @@ using res_t = rule_tool::rule_kit_cmd_res<alloc_t>;
 using ip_t = rule_tool::rule_kit_cmd_ip<alloc_t>;
 using int_t = rule_tool::rule_kit_int_t;
 using cmd_tgt_t = rule_cmd_data_def::cmd_target;
+using cmd_op_t = rule_cmd_data_def::cmd_op_single;
 using cmd_type_t = rule_cmd_data_def::cmd_type;
 using cmd_index_t = rule_cmd_data_def::cmd_index;
 using cmd_mgr_t = rule_cmd_data_def::cmd_mgr_index;
@@ -475,6 +476,56 @@ static bool test_create_lower_manager_during_run()
 	return expect("create_lower_manager", run_kit(kit, 1, 0) && marker == 1 && kit.get_owner().get_cmd_set().size() == 2);
 }
 
+// 16：当前命令扩容后，handler 的 cmd_info 立即看到新操作数窗口
+static bool test_cmd_info_refresh_after_alloc()
+{
+	obs o;
+	kit_t kit = make_kit(o);
+	std::size_t seen = 0;
+
+	test_t::add_command(kit, 1, [&seen](param_t& p) -> res_t
+	{
+		kit_t& k = p.get_owner();
+		const cmd_tgt_t grow_tgt(rule_cmd_data_def::op_cmd_type::cmd_val, 0, 0, 1, 0, 4);
+
+		if (k.alloc(p, grow_tgt, true, false) == false)
+			return res_t(int_t::error, std::nullopt);
+
+		seen = p.get_cmd_info().get_cmd_sgl().get_content_span().size();
+		return res_t(int_t::next, std::nullopt);
+	});
+
+	add_cmd(kit, 0, 0, 1);
+	return expect("cmd_info_refresh_after_alloc", run_kit(kit, 0, 0) && seen == 4);
+}
+
+// 17: get_op_parse alloc stage refreshes current command before second parse
+static bool test_get_op_parse_alloc_refresh()
+{
+	obs o;
+	kit_t kit = make_kit(o);
+	bool parse_ok = false;
+
+	test_t::add_command(kit, 1, [&parse_ok](param_t& p) -> res_t
+	{
+		auto parse_res = p.get_owner().get_op_parse(p, { 0 }, true, false);
+		const std::size_t parse_size_v = parse_res.has_value() ? parse_res.value().get().size() : 0;
+		const std::size_t cmd_size_v = p.get_cmd_info().get_cmd_sgl().get_content_span().size();
+		parse_ok = parse_res.has_value() &&
+			parse_size_v == 1 &&
+			cmd_size_v == 4;
+		return res_t(int_t::next, std::nullopt);
+	});
+	test_t::add_command(kit, 2, [&o](param_t&) -> res_t { o.cb++; return res_t(int_t::next, std::nullopt); });
+
+	const cmd_tgt_t grow_tgt(rule_cmd_data_def::op_cmd_type::cmd_val, 0, 0, 1, 1, 3);
+	const cmd_op_t grow_op = grow_tgt;
+	kit.add_set_cmd_set(0, 0, 1, 0, { grow_op });
+	add_cmd(kit, 0, 1, 2);
+
+	return expect("get_op_parse_alloc_refresh", run_kit(kit, 0, 0) && parse_ok);
+}
+
 int main()
 {
 	bool ok = true;
@@ -495,6 +546,8 @@ int main()
 	ok &= test_delete_after_cursor();
 	ok &= test_delete_last_command_manager_survives();
 	ok &= test_create_lower_manager_during_run();
+	ok &= test_cmd_info_refresh_after_alloc();
+	ok &= test_get_op_parse_alloc_refresh();
 
 	std::printf("%s\n", ok ? "ALL PASS" : "SOME FAILED");
 	return ok ? 0 : 1;

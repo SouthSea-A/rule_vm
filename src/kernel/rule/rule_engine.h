@@ -410,9 +410,9 @@ namespace rule_tool
 		{
 			return ralloc::dealloc_rc<alloc_rule, outer_t>(int_info_save, run_param_v, rc_tgt_v);
 		}
-		bool get_parse_op_run(rdata::rule_int_info& int_info_save, cmd_act_param& run_param_v, const rdata::rule_cmd_sgl& rule_cmd_sgl_v, cmd_data::cmd_op_index op_parse_index_v, parse_op& op_parse_res_save, bool is_alloc_rc, bool is_incr_ref)
+		bool get_parse_op_run(rdata::rule_int_info& int_info_save, cmd_act_param& run_param_v, const rdata::rule_cmd_sgl& rule_cmd_sgl_v, cmd_data::cmd_op_index op_parse_index_v, parse_op& op_parse_res_save, bool is_alloc_rc, bool is_incr_ref, bool is_alloc_only = false)
 		{
-			return rparse::get_parse_op<alloc_rule, outer_t>(int_info_save, run_param_v, rule_cmd_sgl_v, op_parse_index_v, op_parse_res_save, is_alloc_rc, is_incr_ref);
+			return rparse::get_parse_op<alloc_rule, outer_t>(int_info_save, run_param_v, rule_cmd_sgl_v, op_parse_index_v, op_parse_res_save, is_alloc_rc, is_incr_ref, is_alloc_only);
 		}
 		bool get_parse_op_mul_run(rdata::rule_int_info& int_info_save, cmd_act_param& run_param_v, const std::initializer_list<parse_data::op_handle_set<alloc_rule>>& op_parse_set)
 		{
